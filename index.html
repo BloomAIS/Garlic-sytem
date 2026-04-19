@@ -1,0 +1,293 @@
+<!DOCTYPE html><html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garlic Production System</title>
+<style>
+body { font-family: Arial; padding:10px; }
+button { width:100%; padding:12px; margin:5px 0; }
+input, select, textarea { width:100%; padding:10px; margin:5px 0; }
+.hidden { display:none; }
+.warn { color:red; font-weight:bold; }
+</style>
+</head>
+<body><h2>Garlic Production System</h2><div id="loginScreen">
+<input type="password" id="pass" placeholder="Passcode">
+<button onclick="login()">Enter</button>
+</div><div id="app" class="hidden"><button onclick="show('dashboard')">Dashboard</button>
+
+<div id="dashboard">
+<button onclick="show('batch')">Create Batch</button>
+<button onclick="show('steps')">Steps</button>
+<button onclick="show('employees')">Employees</button>
+<button onclick="show('work')">Work</button>
+<button onclick="show('search')">Search / Print</button>
+<button onclick="exportData()">Export Backup</button>
+</div><div id="batch" class="hidden">
+<h3>Create Batch</h3>
+<input id="batchcode" placeholder="Batch Code">
+<button onclick="createBatch()">Save</button>
+</div><div id="employees" class="hidden">
+<h3>Employees</h3>
+<input id="empName" placeholder="Employee Name">
+<button onclick="addEmp()">Add</button>
+<ul id="empList"></ul>
+</div><div id="steps" class="hidden">
+<h3>Steps</h3><input id="stepName" placeholder="Step Name">
+<button onclick="addStep()">Add Step</button><h4>Step Order</h4>
+<div id="stepList"></div><hr><select id="stepSelect"></select>
+
+<input id="fieldName" placeholder="Field Name"><select id="fieldType">
+<option value="text">Text</option>
+<option value="number">Number</option>
+<option value="dropdown">Dropdown</option>
+<option value="notes">Notes</option>
+<option value="yesno">Yes/No</option>
+</select><input id="fieldOptions" placeholder="Dropdown options (comma separated)">
+<label><input type="checkbox" id="required"> Required</label><button onclick="addField()">Add Field</button>
+
+<div id="fieldList"></div>
+</div><div id="work" class="hidden">
+<h3>Work</h3>
+<select id="workStep" onchange="renderForm()"></select>
+<div id="warning" class="warn"></div>
+<div id="formArea"></div>
+<button onclick="saveLog()">Save</button>
+</div><div id="search" class="hidden">
+<h3>Search</h3>
+<input type="date" id="from">
+<input type="date" id="to">
+<button onclick="search()">Search</button>
+<div id="results"></div>
+<button onclick="window.print()">Print</button>
+</div></div><script>
+const PASS = "1234";
+
+function getData(key){
+  return JSON.parse(localStorage.getItem(key) || "[]");
+}
+
+function setData(key, value){
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+// 🔥 FIXED LOGIN (works on all phones)
+function login(){
+  const input = document.getElementById("pass").value;
+  if(input === PASS){
+    document.getElementById("loginScreen").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+    load();
+  } else {
+    alert("Wrong passcode");
+  }
+}
+
+// 🔥 ENTER KEY SUPPORT (reliable)
+document.addEventListener("DOMContentLoaded", function(){
+  const passInput = document.getElementById("pass");
+  passInput.addEventListener("keyup", function(e){
+    if(e.key === "Enter" || e.keyCode === 13){
+      login();
+    }
+  });
+});
+
+function show(id){
+  document.querySelectorAll("#app > div").forEach(d => d.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+  load();
+}
+
+function createBatch(){
+  const code = document.getElementById("batchcode").value;
+  if(!code) return alert("Batch code required");
+
+  let batches = getData("batches");
+  batches.push({code, time:new Date()});
+  setData("batches", batches);
+
+  alert("Batch saved");
+}
+
+function addEmp(){
+  const name = document.getElementById("empName").value;
+  if(!name) return;
+
+  let emps = getData("emps");
+  emps.push(name);
+  setData("emps", emps);
+  load();
+}
+
+function addStep(){
+  const name = document.getElementById("stepName").value;
+  if(!name) return;
+
+  let steps = getData("steps");
+  steps.push({name, fields:[]});
+  setData("steps", steps);
+  load();
+}
+
+function addField(){
+  let steps = getData("steps");
+  let step = steps.find(s => s.name === document.getElementById("stepSelect").value);
+  if(!step) return;
+
+  let field = {
+    name: document.getElementById("fieldName").value,
+    type: document.getElementById("fieldType").value,
+    required: document.getElementById("required").checked,
+    options: document.getElementById("fieldOptions").value.split(",").map(o=>o.trim()).filter(o=>o)
+  };
+
+  step.fields.push(field);
+  setData("steps", steps);
+  renderFields();
+}
+
+function load(){
+  const steps = getData("steps");
+  const emps = getData("emps");
+
+  document.getElementById("stepList").innerHTML =
+    steps.map((s,i)=>`${i+1}. ${s.name}`).join("<br>");
+
+  document.getElementById("workStep").innerHTML =
+    steps.map(s=>`<option>${s.name}</option>`).join("");
+
+  document.getElementById("stepSelect").innerHTML =
+    document.getElementById("workStep").innerHTML;
+
+  document.getElementById("empList").innerHTML =
+    emps.map(e=>`<li>${e}</li>`).join("");
+
+  renderFields();
+}
+
+function renderFields(){
+  let steps = getData("steps");
+  let step = steps.find(s => s.name === document.getElementById("stepSelect").value);
+  if(!step) return;
+
+  document.getElementById("fieldList").innerHTML =
+    step.fields.map(f=>`${f.name} (${f.type})`).join("<br>");
+}
+
+function renderForm(){
+  let steps = getData("steps");
+  let step = steps.find(s => s.name === document.getElementById("workStep").value);
+  if(!step) return;
+
+  let batches = getData("batches");
+  let emps = getData("emps");
+
+  let html = "";
+
+  html += "Batch:<select id='batch'>" +
+    batches.map(b=>`<option>${b.code}</option>`).join("") + "</select>";
+
+  html += "Employee:<select id='emp'>" +
+    emps.map(e=>`<option>${e}</option>`).join("") + "</select>";
+
+  step.fields.forEach(f=>{
+    html += `<label>${f.name}</label>`;
+
+    if(f.type==="text") html += `<input id="${f.name}">`;
+    if(f.type==="number") html += `<input type="number" id="${f.name}">`;
+    if(f.type==="notes") html += `<textarea id="${f.name}"></textarea>`;if(f.type==="yesno") html += `<select id="${f.name}"><option>Yes</option><option>No</option></select>`;
+if(f.type==="dropdown"){
+  html += `<select id="${f.name}">` +
+    f.options.map(o=>`<option>${o}</option>`).join("") +
+    `</select>`;
+}
+
+});
+
+document.getElementById("formArea").innerHTML = html;
+
+checkOrder();
+}
+
+function checkOrder(){
+let logs = getData("logs");
+let steps = getData("steps");
+
+if(logs.length === 0) return;
+
+let current = document.getElementById("workStep").value;
+let last = logs[logs.length-1].step;
+
+let currentIndex = steps.findIndex(s=>s.name===current);
+let lastIndex = steps.findIndex(s=>s.name===last);
+
+if(currentIndex < lastIndex){
+document.getElementById("warning").innerText = "⚠ Out of order step";
+} else {
+document.getElementById("warning").innerText = "";
+}
+}
+
+function saveLog(){
+let steps = getData("steps");
+let step = steps.find(s => s.name === document.getElementById("workStep").value);
+if(!step) return;
+
+let data = {};
+
+for(let f of step.fields){
+let val = document.getElementById(f.name).value;
+if(f.required && !val){
+alert(f.name + " required");
+return;
+}
+data[f.name] = val;
+}
+
+let logs = getData("logs");
+
+logs.push({
+step: step.name,
+batch: document.getElementById("batch").value,
+employee: document.getElementById("emp").value,
+data,
+time: new Date()
+});
+
+setData("logs", logs);
+alert("Saved");
+}
+
+function search(){
+let logs = getData("logs");
+
+let from = new Date(document.getElementById("from").value);
+let to = new Date(document.getElementById("to").value);
+
+let results = logs.filter(l=>{
+let t = new Date(l.time);
+return (!isNaN(from)?t>=from:true) && (!isNaN(to)?t<=to:true);
+});
+
+document.getElementById("results").innerHTML =
+results.map(r=>"<div> <b>${r.step}</b> | ${r.batch} | ${r.employee}<br> ${Object.entries(r.data).map(([k,v])=>k+": "+v).join(", ")} </div> <hr>").join("");
+}
+
+function exportData(){
+let data = {
+batches:getData("batches"),
+employees:getData("emps"),
+steps:getData("steps"),
+logs:getData("logs")
+};
+
+let blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
+let a = document.createElement("a");
+a.href = URL.createObjectURL(blob);
+a.download = "garlic-backup.json";
+a.click();
+}
+</script>
+
+</body>
+</html>
