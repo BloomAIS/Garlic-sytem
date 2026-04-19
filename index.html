@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garlic Production System</title>
+
+<style>
+body { font-family: Arial; padding: 10px; }
+button { width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; }
+input, select { width: 100%; padding: 10px; margin: 5px 0; }
+
+.hidden { display: none; }
+.card { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+
+.nav button { width: 32%; }
+</style>
+</head>
+
+<body>
+
+<h2>Garlic Production System</h2>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <input type="password" id="pass" placeholder="Passcode">
+  <button id="loginBtn">Enter</button>
+  <div id="error" style="color:red;"></div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+
+  <div class="nav">
+    <button onclick="show('dashboard')">Dashboard</button>
+    <button onclick="show('batch')">Batch</button>
+    <button onclick="show('tray')">Tray</button>
+    <button onclick="show('packing')">Packing</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard">
+    <h3>Dashboard</h3>
+    <div id="summary"></div>
+  </div>
+
+  <!-- BATCH LOG -->
+  <div id="batch" class="hidden">
+    <h3>Batch Log</h3>
+    <input id="batchCode" placeholder="Batch Code">
+    <input id="batchQty" type="number" placeholder="Quantity">
+    <button onclick="saveBatch()">Save Batch</button>
+  </div>
+
+  <!-- TRAY LOG -->
+  <div id="tray" class="hidden">
+    <h3>Tray Log</h3>
+    <input id="trayBatch" placeholder="Batch Code">
+    <input id="trayCount" type="number" placeholder="Tray Count">
+    <button onclick="saveTray()">Save Tray</button>
+  </div>
+
+  <!-- PACKING LOG -->
+  <div id="packing" class="hidden">
+    <h3>Packing Log</h3>
+    <input id="packBatch" placeholder="Batch Code">
+    <select id="packSize">
+      <option value="2oz">2 oz</option>
+      <option value="4oz">4 oz</option>
+    </select>
+    <input id="packQty" type="number" placeholder="Quantity">
+    <button onclick="savePack()">Save Packing</button>
+  </div>
+
+  <button onclick="exportData()">Export Data</button>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+  const passInput = document.getElementById("pass");
+  const loginBtn = document.getElementById("loginBtn");
+
+  function login() {
+    if (passInput.value === "1234") {
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("app").style.display = "block";
+      updateDashboard();
+    } else {
+      document.getElementById("error").innerText = "Wrong passcode";
+    }
+  }
+
+  loginBtn.addEventListener("click", login);
+  passInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") login();
+  });
+
+});
+
+function show(id) {
+  ["dashboard","batch","tray","packing"].forEach(x=>{
+    document.getElementById(x).classList.add("hidden");
+  });
+  document.getElementById(id).classList.remove("hidden");
+}
+
+function saveBatch() {
+  let data = JSON.parse(localStorage.getItem("batch")||"[]");
+  data.push({
+    code: batchCode.value,
+    qty: batchQty.value,
+    date: new Date().toLocaleString()
+  });
+  localStorage.setItem("batch", JSON.stringify(data));
+  updateDashboard();
+}
+
+function saveTray() {
+  let data = JSON.parse(localStorage.getItem("tray")||"[]");
+  data.push({
+    batch: trayBatch.value,
+    count: trayCount.value,
+    date: new Date().toLocaleString()
+  });
+  localStorage.setItem("tray", JSON.stringify(data));
+  updateDashboard();
+}
+
+function savePack() {
+  let data = JSON.parse(localStorage.getItem("pack")||"[]");
+  data.push({
+    batch: packBatch.value,
+    size: packSize.value,
+    qty: packQty.value,
+    date: new Date().toLocaleString()
+  });
+  localStorage.setItem("pack", JSON.stringify(data));
+  updateDashboard();
+}
+
+function updateDashboard() {
+  let batch = JSON.parse(localStorage.getItem("batch")||"[]");
+  let tray = JSON.parse(localStorage.getItem("tray")||"[]");
+  let pack = JSON.parse(localStorage.getItem("pack")||"[]");
+
+  document.getElementById("summary").innerHTML =
+    "Batches: " + batch.length + "<br>" +
+    "Trays: " + tray.length + "<br>" +
+    "Packed: " + pack.length;
+}
+
+function exportData() {
+  let all = {
+    batch: JSON.parse(localStorage.getItem("batch")||"[]"),
+    tray: JSON.parse(localStorage.getItem("tray")||"[]"),
+    pack: JSON.parse(localStorage.getItem("pack")||"[]")
+  };
+
+  let blob = new Blob([JSON.stringify(all, null, 2)], {type:"application/json"});
+  let a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "garlic-data.json";
+  a.click();
+}
+</script>
+
+</body>
+</html>
