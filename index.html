@@ -1,0 +1,216 @@
+<!DOCTYPE html><html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garlic Production System</title><style>
+body { font-family: Arial; padding:10px; }
+input, select, button, textarea {
+  width:100%; padding:10px; margin:5px 0;
+}
+button { background:#2e7d32; color:white; border:none; }
+.hidden { display:none; }
+.card { border:1px solid #ccc; padding:10px; margin:10px 0; }
+.warn { color:red; font-weight:bold; }
+</style></head><body><h2>Garlic Production System</h2><!-- LOGIN --><div id="loginScreen">
+  <input id="pass" type="password" placeholder="Passcode">
+  <button onclick="login()">Enter</button>
+  <div id="error" style="color:red;"></div>
+</div><!-- APP --><div id="app" class="hidden"><button onclick="show('dashboard')">Dashboard</button>
+<button onclick="show('admin')">Admin</button>
+<button onclick="show('work')">Work</button>
+
+<!-- DASHBOARD --><div id="dashboard">
+  <h3>Dashboard</h3>
+  <div id="summary"></div>
+</div><!-- ADMIN --><div id="admin" class="hidden">
+  <h3>Admin</h3>  <h4>Employees</h4>
+  <input id="empName" placeholder="Employee Name">
+  <button onclick="addEmp()">Add</button>
+  <div id="empList"></div>  <h4>Batch</h4>
+  <input id="batchInput" placeholder="Batch Code">
+  <button onclick="addBatch()">Add</button>  <h4>Steps</h4>
+  <input id="stepName" placeholder="Step Name">
+  <button onclick="addStep()">Add Step</button><select id="stepSelect"></select>
+
+  <input id="fieldName" placeholder="Field Name">
+  <select id="fieldType">
+    <option value="text">Text</option>
+    <option value="number">Number</option>
+    <option value="notes">Notes</option>
+  </select>
+  <button onclick="addField()">Add Field</button>  <div id="fieldList"></div>
+</div><!-- WORK --><div id="work" class="hidden">
+  <h3>Work</h3><select id="workStep" onchange="buildForm()"></select>
+
+<select id="batch"></select>
+
+  <input id="employee" list="empData" placeholder="Done By">
+  <datalist id="empData"></datalist>  <select id="unit">
+    <option value="">Select Unit</option>
+    <option>2 oz</option>
+    <option>4 oz</option>
+  </select>  <div id="timerDisplay">00:00</div><button onclick="startTimer()">Start</button>
+<button onclick="pauseTimer()">Pause</button>
+<button onclick="resumeTimer()">Resume</button>
+<button onclick="stopTimer()">Stop</button>
+
+  <h4>Adjust Time</h4>
+  <input type="datetime-local" id="startAdjust">
+  <input type="datetime-local" id="endAdjust">
+  <input type="number" id="durationAdjust" placeholder="Duration (seconds)">  <div id="formArea"></div><button onclick="complete()">Complete</button>
+
+  <div id="warn" class="warn"></div>
+</div></div><script>
+const PASS = "1234";
+
+function get(k){ return JSON.parse(localStorage.getItem(k)||"[]"); }
+function set(k,v){ localStorage.setItem(k,JSON.stringify(v)); }
+
+function login(){
+  if(document.getElementById("pass").value===PASS){
+    loginScreen.classList.add("hidden");
+    app.classList.remove("hidden");
+    load();
+  } else error.innerText="Wrong passcode";
+}
+
+function show(id){
+  document.querySelectorAll("#app > div").forEach(d=>d.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+  load();
+}
+
+function addEmp(){
+  let e=get("emps");
+  e.push(empName.value);
+  set("emps",e);
+  load();
+}
+
+function addBatch(){
+  let b=get("batch");
+  b.push(batchInput.value);
+  set("batch",b);
+}
+
+function addStep(){
+  let s=get("steps");
+  s.push({name:stepName.value,fields:[]});
+  set("steps",s);
+  load();
+}
+
+function addField(){
+  let s=get("steps");
+  let step=s.find(x=>x.name===stepSelect.value);
+  step.fields.push({name:fieldName.value,type:fieldType.value});
+  set("steps",s);
+  load();
+}
+
+function load(){
+  let s=get("steps"), e=get("emps"), b=get("batch");
+
+  stepSelect.innerHTML=s.map(x=>`<option>${x.name}</option>`).join("");
+  workStep.innerHTML=stepSelect.innerHTML;
+  batch.innerHTML=b.map(x=>`<option>${x}</option>`).join("");
+
+  empData.innerHTML=e.map(x=>`<option value="${x}">`).join("");
+}
+
+function buildForm(){
+  let s=get("steps");
+  let step=s.find(x=>x.name===workStep.value);
+  if(!step) return;
+
+  formArea.innerHTML=step.fields.map(f=>{
+    if(f.type==="text") return `<input id="${f.name}" placeholder="${f.name}">`;
+    if(f.type==="number") return `<input type="number" id="${f.name}" placeholder="${f.name}">`;
+    return `<textarea id="${f.name}" placeholder="${f.name}"></textarea>`;}).join("");
+
+startReminder();
+}
+
+let timer=0, interval=null, running=false;
+let startTime=null, endTime=null;
+
+function updateDisplay(){
+let m=Math.floor(timer/60).toString().padStart(2,'0');
+let s=(timer%60).toString().padStart(2,'0');
+timerDisplay.innerText="${m}:${s}";
+}
+
+function startTimer(){
+if(running) return;
+running=true;
+startTime=new Date();
+interval=setInterval(()=>{
+timer++;
+updateDisplay();
+},1000);
+}
+
+function pauseTimer(){
+running=false;
+clearInterval(interval);
+}
+
+function resumeTimer(){
+startTimer();
+}
+
+function stopTimer(){
+running=false;
+clearInterval(interval);
+endTime=new Date();
+}
+
+function complete(){
+
+if(!batch.value || !employee.value || !unit.value){
+warn.innerText="Missing required fields";
+return;
+}
+
+if(!startTime){
+if(!confirm("Timer not started. Continue?")) return;
+}
+
+stopTimer();
+
+let logs=get("logs");
+
+let data={};
+document.querySelectorAll("#formArea input,#formArea textarea").forEach(i=>{
+data[i.id]=i.value;
+});
+
+let log={
+step:workStep.value,
+batch:batch.value,
+unit:unit.value,
+doneBy:employee.value,
+startTime:startAdjust.value || startTime,
+endTime:endAdjust.value || endTime,
+duration:durationAdjust.value || timer,
+data,
+time:new Date()
+};
+
+logs.push(log);
+set("logs",logs);
+
+alert("Saved");
+}
+
+function startReminder(){
+setInterval(()=>{
+try{
+navigator.vibrate(200);
+alert("Log still open");
+}catch{}
+},300000);
+}
+</script>
+
+</body>
+</html>
